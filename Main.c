@@ -5,13 +5,14 @@
 #include <time.h>
 #define VMAX 3
 #define GMAX 5
-#define SIZE 50
+#define SIZE 20
 
 struct Car {
    int id;
    int velocity;
    int position;
    int nextPosition;
+   bool alreadyMoved;
 };
 
 int generation;
@@ -19,6 +20,7 @@ int idCount = 1;
 int v = 0;
 int u = 0;
 struct Car *cells[SIZE] = {NULL};
+struct Car *nextGen[SIZE] = {NULL};
 
 /*
 ** Return the smaller of 2 numbers
@@ -56,7 +58,7 @@ int min(int a, int b)
 */
 int accelerate_rule(int velocity)
 {
-	v = min(velocity + 1,VMAX);
+	int v = min(velocity + 1,VMAX);
 
 
 	int random = rand() % 10;
@@ -126,42 +128,79 @@ bool isArrayEmpty()
 
 struct Car *createCar()
 {
-    printf("creating car %d\n", idCount);
     struct Car *c = (struct Car*)malloc(sizeof(struct Car));
     //struct Employee* ret = (struct Employee*)malloc(sizeof(struct Employee));
     c->id = idCount;
     c->velocity = 0;
     c->position = 0;
+    printf("creating car %d\n", c->id);
     idCount ++;
     return c;
 }
 
-void moveCars()
+/*
+**accelerates and randomises the speeds of each car in the cells
+**doesn't actually move them, just changes the speeds & next positions
+*/
+void accelerateAllCars()
 {
-    printf("Moving cars\n");
     int i;
     for (i = 0; i < SIZE; i ++)
     {
         if(cells[i] != NULL)
         {
+            //reset boolean for moveCars method to know if it has moved a car
+            cells[i]->alreadyMoved = false;
             //accelerate cars (not actually moving yet)
             cells[i]->velocity = accelerate_rule(cells[i]->velocity);
             //brake to avoid collisions
             cells[i]->velocity = brake_rule(cells[i]->velocity, cells[i]->position);
-            printf("car %d velocity = %d, position = %d\n", cells[i]->id, cells[i]->velocity, cells[i]->position);
             //set next positions
             cells[i]->nextPosition = cells[i]->position + cells[i]->velocity;
-            //check if any cars have reached the end of the array
-            if(!(cells[i]->nextPosition >= SIZE))
-            {
-                //move cars ahead
-                cells[cells[i]->nextPosition] = cells[cells[i]->position];
-                cells[i]->position = cells[i]->nextPosition;
-            }
-
-            cells[i] = NULL;
         }
     }
+}
+
+void moveCars()
+{
+    printf("Moving cars\n");
+    accelerateAllCars();
+    int i;
+    for(i = 0; i < SIZE; i++)
+    {
+        if(cells[i] != NULL)
+        {
+            if(!(cells[i]->nextPosition >= SIZE))
+            {
+                cells[i]->position = cells[i]->nextPosition;
+                nextGen[cells[i]->nextPosition] = cells[i];
+            }
+            cells[i] = NULL;
+        }
+       /* if (cells[i] != NULL && !cells[i]->alreadyMoved)
+        {
+            int pos = cells[i]->position;
+            int next = cells[i]->nextPosition;
+            cells[next] = cells[pos];
+            cells[next]->alreadyMoved = true;
+            cells[pos] = NULL;
+        }*/
+    }
+    for(i=0; i < SIZE; i++)
+    {
+        cells[i] = nextGen[i];
+        nextGen[i] = NULL;
+    }
+
+    int j;
+    for(j = 0; j < SIZE; j++)
+    {
+        if(cells[j] != NULL)
+        {
+            printf("j = %d. Car id: %d, position: %d, speed: %d\n", j, cells[j]->id, cells[j]->position, cells[j]->velocity);
+        }
+    }
+
 }
 
 int main ()
@@ -184,23 +223,12 @@ int main ()
             }
             moveCars();
         }
+
         moveCars();
         if(isArrayEmpty())
         {
             run = false;
         }
-
-        //display positions for each car
-        int i;
-        for(i = 0; i < SIZE; i++)
-        {
-            printf("hi");
-            if(cells[i] != NULL)
-            {
-                printf("Car %d speed: %d, position: %d\n",  (*cells[i]).id, (*cells[i]).velocity, i);
-            }
-        }
-        printf("\n");
     }
 	return 0;
 }
