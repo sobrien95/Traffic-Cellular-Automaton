@@ -4,8 +4,8 @@
 #include <string.h>
 #include <time.h>
 #define VMAX 4
-#define GMAX 10
-#define SIZE 50
+#define GMAX 2
+#define SIZE 20
 
 struct Car {
    int id;
@@ -14,10 +14,12 @@ struct Car {
    int nextPosition;
 };
 
+
 int generation = 0;
 struct Car *cells[SIZE] = {NULL};
 struct Car *nextGen[SIZE] = {NULL};
-
+int results[SIZE][GMAX];
+FILE *outputFile;
 /*
 ** Return the smaller of 2 numbers.
 */
@@ -194,11 +196,30 @@ void moveCars()
 
 int main ()
 {
+    int iteration = 0;
     srand(time(NULL));
     bool run = true;
 
+    //clear the contents of the results file.
+    outputFile = fopen("results.dat", "w");
+    fclose(outputFile);
+    //open results file for adding data
+    outputFile = fopen("results.dat", "a");
+
+    //initialise results array with default value
+    int s;
+    int gg;
+    for(s = 0; s < SIZE; s++)
+    {
+        for(gg=0; gg<GMAX; gg++)
+        {
+            results[s][gg] = -1;
+        }
+    }
+
     while(run == true)
     {
+        iteration++;
         //create cars until we meet the designated number
         if(generation < GMAX)
         {
@@ -232,11 +253,33 @@ int main ()
             {
                 if(cells[i] != NULL)
                 {
-                    printf("i = %d. Car id: %d, position: %d, speed: %d\n", i, cells[i]->id, cells[i]->position, cells[i]->velocity);
+                    /*
+                    output car's position & the iteration number, x and y values for GNUplot
+                    */
+                    int id = cells[i]->id - 1;
+                    results[iteration - 1][id] = cells[i]->position;
                 }
             }
-
         }//end else
     }//end while
+
+	int g;
+	int t;
+	for(g = 0; g < GMAX; g++)
+    {
+        for(t = 0; t < SIZE; t++)
+        {
+            if(results[t][g] != -1)
+            {
+
+                int p = results[t][g];
+
+                fprintf(outputFile, "%d %d\n", t, p);
+            }
+        }
+        fprintf(outputFile, "\n");
+    }
+    printf("\nDone writing to file \"results.dat\", closing.");
+    fclose(outputFile);
 	return 0;
 }//end main
