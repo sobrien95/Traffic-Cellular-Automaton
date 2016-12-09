@@ -4,14 +4,15 @@
 #include <string.h>
 #include <time.h>
 #define VMAX 4
-#define GMAX 2
-#define SIZE 20
+#define GMAX 100
+#define SIZE 1000
 
 struct Car {
    int id;
    int velocity;
    int position;
    int nextPosition;
+   int journeyTime;
 };
 
 
@@ -116,7 +117,7 @@ void randomisationRule()
         if(cells[i] != NULL)
         {
             //give probability of .2 for randomisation
-            if(rand()%10 >= 8)
+            if(rand()%10 >= 9)
             {
                 //set the speed of a car to be a random number less than VMAX
                 int speed = (rand() % VMAX) + 1;
@@ -156,6 +157,7 @@ struct Car *createCar()
     c->id = generation;
     c->velocity = 0;
     c->position = 0;
+    c->journeyTime = 0;
     printf("creating car %d\n", c->id);
     return c;
 }//end createCar
