@@ -3,9 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <pthread.h>
+
 #define VMAX 4
-#define GMAX 2
-#define SIZE 20
+#define GMAX 10
+#define SIZE 50
+#define NUM_THREADS 4
 
 struct Car {
    int id;
@@ -14,12 +17,10 @@ struct Car {
    int nextPosition;
 };
 
-
 int generation = 0;
 struct Car *cells[SIZE] = {NULL};
 struct Car *nextGen[SIZE] = {NULL};
-int results[SIZE][GMAX];
-FILE *outputFile;
+
 /*
 ** Return the smaller of 2 numbers.
 */
@@ -194,92 +195,68 @@ void moveCars()
     }
 }//end moveCars
 
-int main ()
+void* create_generation ( void* rank){
+
+	 //create cars until we meet the designated number
+	        if(generation < GMAX)
+	        {
+	            //check that no car is in the first cell
+	            if(cells[0] == NULL)
+	            {
+	                generation++;
+	                struct Car *car = createCar();
+	                cells[0] = car;
+	            }
+	        }
+	        //increase the speed of cars (no movement yet)
+	        accelerationRule();
+	        //introduce an element of randomness to the driving speeds
+	        randomisationRule();
+	        //slow cars down to avoid collisions
+	        brakeRule();
+	        //move the cars to their next positions
+	        moveCars();
+	        //end while loop if the cars have all passed through the cells
+
+ pthread_exit(NULL);
+}
+
+int main (int argc, char* argv[])
 {
-    int iteration = 0;
+	long thread;
+	pthread_t* thread_handles;
+
+	thread_handles = malloc(NUM_THREADS * sizeof(pthread_t));
+
     srand(time(NULL));
     bool run = true;
 
-    //clear the contents of the results file.
-    outputFile = fopen("results.dat", "w");
-    fclose(outputFile);
-    //open results file for adding data
-    outputFile = fopen("results.dat", "a");
-
-    //initialise results array with default value
-    int s;
-    int gg;
-    for(s = 0; s < SIZE; s++)
-    {
-        for(gg=0; gg<GMAX; gg++)
-        {
-            results[s][gg] = -1;
-        }
-    }
-
     while(run == true)
     {
-        iteration++;
-        //create cars until we meet the designated number
-        if(generation < GMAX)
-        {
-            //check that no car is in the first cell
-            if(cells[0] == NULL)
-            {
-                generation++;
-                struct Car *car = createCar();
-                cells[0] = car;
-            }
-        }
-        //increase the speed of cars (no movement yet)
-        accelerationRule();
-        //introduce an element of randomness to the driving speeds
-        randomisationRule();
-        //slow cars down to avoid collisions
-        brakeRule();
-        //move the cars to their next positions
-        moveCars();
-        //end while loop if the cars have all passed through the cells
-        if(isArrayEmpty())
-        {
-            run = false;
-            continue;
-        }
-        else
-        {
-            //loop to display car details after each run
-            int i;
-            for(i = 0; i < SIZE; i++)
-            {
-                if(cells[i] != NULL)
-                {
-                    /*
-                    output car's position & the iteration number, x and y values for GNUplot
-                    */
-                    int id = cells[i]->id - 1;
-                    results[iteration - 1][id] = cells[i]->position;
-                }
-            }
-        }//end else
+    	for (thread =0; thread < NUM_THREADS; thread++)
+    		pthread_create(&thread_handles[thread],NULL,create_generation,(void*)thread);
+    	for(thread=0; thread < NUM_THREADS;thread++)
+    	    		pthread_join(thread_handles[thread], NULL);
+    	if(isArrayEmpty())
+    	{
+    		run = false;
+    		continue;
+    	}
+    	else
+    	{
+    //loop to display car details after each run
+    		int i;
+    		for(i = 0; i < SIZE; i++)
+    		{
+    		  if(cells[i] != NULL)
+    		                {
+    		                    printf("i = %d. Car id: %d, position: %d, speed: %d\n", i, cells[i]->id, cells[i]->position, cells[i]->velocity);
+    		                }
+    		            }
+
+    		        }//end else
+
+
     }//end while
-
-	int g;
-	int t;
-	for(g = 0; g < GMAX; g++)
-    {
-        for(t = 0; t < SIZE; t++)
-        {
-            if(results[t][g] != -1)
-            {
-
-                int p = results[t][g];
-
-                fprintf(outputFile, "%d %d\n", t, p);
-            }
-        }
-        fprintf(outputFile, "\n");
-    }
-    printf("\nDone writing to file \"results.dat\", closing.");
-    fclose(outputFile);
 	return 0;
 }//end main
