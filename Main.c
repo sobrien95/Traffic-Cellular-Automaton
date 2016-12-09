@@ -15,13 +15,16 @@ struct Car {
    int velocity;
    int position;
    int nextPosition;
+   int journeyTime;
 };
 
 pthread_barrier_t barrier;
 int generation = 0;
+int results[SIZE][GMAX];
 struct Car *cells[SIZE] = {NULL};
 struct Car *nextGen[SIZE] = {NULL};
 struct Car *cars[GMAX] = {NULL};
+FILE *outputFile;
 
 /*
 ** Return the smaller of 2 numbers.
@@ -99,8 +102,7 @@ void* brakeRule(int first, int last)
     {
         if(cars[i] != NULL && cars[i]->position != -1)
         {
-            int position = cars[i]->position;
-            int gap = findGap(position);
+            int gap = findGap(cars[i]->position);
             cars[i]->velocity = min(gap, cars[i]->velocity);
         }
     }
@@ -160,6 +162,7 @@ struct Car *createCar()
     c->id = generation;
     c->velocity = 0;
     c->position = 0;
+    c->journeyTime = 0;
     printf("creating car %d\n", c->id);
     return c;
 }//end createCar
@@ -176,6 +179,7 @@ void* moveCars()
     {
         if(cars[i] != NULL && cars[i]->position != -1)
         {
+            cars[i]->journeyTime++;
             //set the car's nextPosition based off its speed
             cars[i]->nextPosition = cars[i]->position + cars[i]->velocity;
             //check that the nextPosition isn't outside the array
@@ -226,16 +230,33 @@ void* create_generation ( void* rank){
 
 int main (int argc, char* argv[])
 {
-    bool run = true;
     srand(time(NULL));
+    int i;
+    int s;
+    int iteration = 0;
+    bool run = true;
     long thread = 0;
 	pthread_t* thread_handles;
 	pthread_barrier_init(&barrier, NULL, 5);
 
 	thread_handles = malloc(NUM_THREADS * sizeof(pthread_t));
 
+    //clear the contents of the results file, close until ready to write again
+    outputFile = fopen("results.dat", "w");
+    fclose(outputFile);
+
+    //initialise the results array with default values of -1
+    for(s = 0; s < SIZE; s++)
+    {
+        for(i = 0; i < GMAX; i++)
+        {
+            results[s][i] = -1;
+        }
+    }
+
     while(run == true)
     {
+        iteration++;
         //create cars until we meet the designated number
         if(generation < GMAX)
         {
@@ -264,18 +285,37 @@ int main (int argc, char* argv[])
     		run = false;
     		continue;
     	}
+    	//output positions of cars  & iteration number to results array with each iteration
     	else
     	{
-            //loop to display car details after each run
-    		int i;
+            //loop to display details of the cars in the cells after each run
     		for(i = 0; i < SIZE; i++)
     		{
                 if(cells[i] != NULL)
                 {
-                    printf("i = %d. Car id: %d, position: %d, speed: %d\n", i, cells[i]->id, cells[i]->position, cells[i]->velocity);
+                    //output the position of the car to the results array, each column represents 1 car
+                    int id = cells[i]->id - 1;
+                    results[iteration - 1][id] = cells[i]->position;
                 }
             }//end for
         }//end else
     }//end while
+
+    //open results file for adding data
+    outputFile = fopen("results.dat", "a");
+
+    for (i = 0; i < GMAX; i++)
+    {
+        for (s = 0; s < SIZE; s++)
+        {
+            if(results[s][i] != -1)
+            {
+
+                int p = results[s][i];
+                fprintf(outputFile, "%d %d\n", s, p);
+            }
+        }
+        fprintf(outputFile, "\n");
+    }
 	return 0;
 }//end main
