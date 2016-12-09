@@ -21,7 +21,7 @@ pthread_barrier_t barrier;
 int generation = 0;
 struct Car *cells[SIZE] = {NULL};
 struct Car *nextGen[SIZE] = {NULL};
-struct Car cars[GMAX];
+struct Car *cars[GMAX] = {NULL};
 
 /*
 ** Return the smaller of 2 numbers.
@@ -80,10 +80,10 @@ void* accelerationRule(int first, int last)
     //loop through cells array
     for(i = first; i < last; i++)
     {
-        if(cells[i] != NULL)
+        if(cars[i] != NULL && cars[i]->position != -1)
         {
-            //accelerate car
-            cells[i]->velocity = min(cells[i]->velocity + 1, VMAX);
+            int index = cars[i]->id - 1;
+            cars[index]->velocity = min(cars[index]->velocity + 1, VMAX);
         }
     }
 }//end accelerationRule
@@ -97,10 +97,11 @@ void* brakeRule(int first, int last)
     //loop through cells array
     for(i = first; i < last; i++)
     {
-        if(cells[i] != NULL)
+        if(cars[i] != NULL && cars[i]->position != -1)
         {
-            int gap = findGap(cells[i]->position);
-            cells[i]->velocity = min(gap, cells[i]->velocity);
+            int position = cars[i]->position;
+            int gap = findGap(position);
+            cars[i]->velocity = min(gap, cars[i]->velocity);
         }
     }
 }//end brakeRule
@@ -115,16 +116,16 @@ void* randomisationRule(int first, int last)
     //loop through cells array
     for(i = first; i < last; i++)
     {
-
-        if(cells[i] != NULL)
+        if(cars[i] != NULL && cars[i]->position != -1)
         {
-            //give probability of .2 for randomisation
-            if(rand()%10 >= 8)
+            int r = rand()%10;
+            if(r >= 3)
             {
-                //set the speed of a car to be a random number less than VMAX
+                int position = cars[i]->position;
+                //set the speed of a car to be a random number less than or equal to VMAX
                 int speed = (rand() % VMAX) + 1;
-                cells[i]->velocity = speed;
-                printf("random %d, car %d\n", cells[i]->velocity, cells[i]->id);
+                cells[position]->velocity = speed;
+                printf("random %d, car %d\n", cells[position]->velocity, cells[position]->id);
             }
         }
     }
@@ -171,19 +172,24 @@ void* moveCars()
     printf("Moving cars\n");
     int i;
     //loop through array
-    for(i = 0; i < SIZE; i++)
+    for(i = 0; i < GMAX; i++)
     {
-        if(cells[i] != NULL)
+        if(cars[i] != NULL && cars[i]->position != -1)
         {
             //set the car's nextPosition based off its speed
-            cells[i]->nextPosition = cells[i]->position + cells[i]->velocity;
+            cars[i]->nextPosition = cars[i]->position + cars[i]->velocity;
             //check that the nextPosition isn't outside the array
-            if(!(cells[i]->nextPosition >= SIZE))
+            if(!(cars[i]->nextPosition >= SIZE))
             {
                 //change car's position field
-                cells[i]->position = cells[i]->nextPosition;
+                cars[i]->position = cars[i]->nextPosition;
                 //put the car in its new cell in the temporary array
-                nextGen[cells[i]->nextPosition] = cells[i];
+                nextGen[cars[i]->nextPosition] = cars[i];
+            }
+            //set car's position to -1 once it's crossed the array
+            else
+            {
+                cars[i]->position = -1;
             }
             //reset the old cell
             cells[i] = NULL;
@@ -197,10 +203,13 @@ void* moveCars()
     }
 }//end moveCars
 
+//thread to calculate the next positions for a portion of the cars
 void* create_generation ( void* rank){
+    //calculate how many jobs to be done, what indexes to start and finish at
     int numJobs = GMAX/NUM_THREADS;
     int myFirst = (int)rank * numJobs;
     int myLast = myFirst + numJobs;
+
     int i;
     for(i = myFirst; i < myLast; i++)
     {
@@ -211,14 +220,14 @@ void* create_generation ( void* rank){
         //slow cars down to avoid collisions
         brakeRule(myFirst, myLast);
     }
+    //wait for the other threads to finish their calculations before moving on to the movement stage
     pthread_barrier_wait(&barrier);
 }
 
 int main (int argc, char* argv[])
 {
-    srand(time(NULL));
     bool run = true;
-
+    srand(time(NULL));
     long thread = 0;
 	pthread_t* thread_handles;
 	pthread_barrier_init(&barrier, NULL, 5);
@@ -227,45 +236,29 @@ int main (int argc, char* argv[])
 
     while(run == true)
     {
-            //create cars until we meet the designated number
-	        if(generation < GMAX)
-	        {
-	            //check that no car is in the first cell
-	            if(cells[0] == NULL)
-	            {
-	                generation++;
-	                struct Car *car = createCar();
-	                cells[0] = car;
-	                cars[generation-1] = *car;
-	            }
-	        }
-
-            for (thread = 0; thread < NUM_THREADS; thread++)
+        //create cars until we meet the designated number
+        if(generation < GMAX)
+        {
+            //check that no car is in the first cell
+            if(cells[0] == NULL)
             {
-                pthread_create(&thread_handles[thread],NULL,create_generation,(void*)thread);
+                generation++;
+                struct Car *car = createCar();
+                cells[0] = car;
+                cars[generation-1] = car;
             }
-            pthread_barrier_wait(&barrier);
+        }
 
-            moveCars();
+        //create threads to calculate the next positions of the cars
+        for (thread = 0; thread < NUM_THREADS; thread++)
+        {
+            pthread_create(&thread_handles[thread],NULL,create_generation,(void*)thread);
+        }
+        //wait for each thread to finish with their calculaions before moving any cars
+        pthread_barrier_wait(&barrier);
+        moveCars();
 
-	      /*  //increase the speed of cars (no movement yet)
-            pthread_create(&thread_handles[thread], NULL, accelerationRule, (void*)thread);
-	        pthread_barrier_wait (&barrier);
-	        thread++;
-	        //introduce an element of randomness to the driving speeds
-	        pthread_create(&thread_handles[thread], NULL, randomisationRule, (void*)thread);
-	        pthread_barrier_wait (&barrier);
-	        thread++;
-	        //slow cars down to avoid collisions
-	        pthread_create(&thread_handles[thread], NULL, brakeRule, (void*)thread);
-	        pthread_barrier_wait (&barrier);
-	        thread++;
-	        //move the cars to their next positions
-	        pthread_create(&thread_handles[thread], NULL, moveCars, (void*)thread);
-	        pthread_exit(NULL);
-	        */
-
-	        //end while loop if the cars have all passed through the cells
+        //end while loop if the cars have all passed through the cells
     	if(isArrayEmpty())
     	{
     		run = false;
@@ -273,7 +266,7 @@ int main (int argc, char* argv[])
     	}
     	else
     	{
-    //loop to display car details after each run
+            //loop to display car details after each run
     		int i;
     		for(i = 0; i < SIZE; i++)
     		{
@@ -283,8 +276,6 @@ int main (int argc, char* argv[])
                 }
             }//end for
         }//end else
-
-
     }//end while
 	return 0;
 }//end main
