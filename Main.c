@@ -6,8 +6,8 @@
 #include <pthread.h>
 
 #define VMAX 4
-#define GMAX 4
-#define SIZE 30
+#define GMAX 80
+#define SIZE 1000
 #define NUM_THREADS 4
 
 struct Car {
@@ -114,6 +114,7 @@ void* brakeRule(int first, int last)
 */
 void* randomisationRule(int first, int last)
 {
+    unsigned int seed = time(NULL);
     int i;
     //loop through cells array
     for(i = first; i < last; i++)
@@ -121,7 +122,7 @@ void* randomisationRule(int first, int last)
         if(cars[i] != NULL && cars[i]->position != -1)
         {
             int r = rand()%10;
-            if(r >= 3)
+            if(r >= 7)
             {
                 int position = cars[i]->position;
                 //set the speed of a car to be a random number less than or equal to VMAX
@@ -230,7 +231,7 @@ void* create_generation ( void* rank){
 
 int main (int argc, char* argv[])
 {
-    srand(time(NULL));
+   // srand(time(NULL));
     int i;
     int s;
     int iteration = 0;
@@ -244,6 +245,7 @@ int main (int argc, char* argv[])
     //clear the contents of the results file, close until ready to write again
     outputFile = fopen("results.dat", "w");
     fclose(outputFile);
+
 
     //initialise the results array with default values of -1
     for(s = 0; s < SIZE; s++)
@@ -317,5 +319,7 @@ int main (int argc, char* argv[])
         }
         fprintf(outputFile, "\n");
     }
+    printf("Done writing to file \"results.dat\", closing.");
+    fclose(outputFile);
 	return 0;
 }//end main
